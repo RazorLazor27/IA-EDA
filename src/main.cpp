@@ -2,7 +2,7 @@
 #include <vector>
 #include <cmath>      // Para sqrt y pow
 #include <numeric>    // Para std::accumulate
-#include <random>     // Para generación de números aleatorios (C++11)
+#include <random>     // Para generación de números aleatorios (proceso estocástico)
 #include <limits>     // Para std::numeric_limits
 #include <map>        // Para agrupar valores por zona
 
@@ -19,14 +19,14 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
 // --------------------------------------------------------------------------
 
 /**
- * @struct Instancia
+ * @struct Instancia cualquiera, para el comienzo del algoritmo se puede definir la instancia inicial y luego esta se va modificando mediante avance el algoritmo.
  * @brief Almacena los datos de entrada del problema.
  *
  * @var datos_terreno Matriz (N x M) con los valores del índice (ej. NDVI, humedad).
  * @var num_zonas (p) El número de sensores/zonas a definir.
  */
 struct Instancia {
-    std::vector<std::vector<float>> datos_terreno;
+    std::vector<std::vector<float>> datos_terreno; 
     int num_zonas;
     int N_filas;
     int M_columnas;

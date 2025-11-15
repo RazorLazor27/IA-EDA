@@ -67,54 +67,50 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
         cv::Mat Z_big;
         cv::resize(matZ, Z_big, cv::Size(), factor, factor, cv::INTER_NEAREST);
 
+        // --- LÓGICA DE DIBUJO DE BORDES MEJORADA ---
+        // En lugar de dibujar rectángulos por zona (que se superponen
+        // si las zonas no son rectangulares), vamos a dibujar un pixel
+        // negro en el heatmap donde dos celdas adyacentes de Z_big
+        // tengan un ID de zona diferente.
+        
+        // Iteramos sobre la matriz de zonas escalada 'Z_big'
+        // Sus dimensiones son (rows * factor) x (cols * factor)
+        // Y dibujamos directamente en el 'heatmapRGBA'
+        
+        for (int i = 0; i < Z_big.rows; ++i) {
+            for (int j = 0; j < Z_big.cols; ++j) {
+                int currentZone = Z_big.at<int>(i, j);
+                bool isBorder = false;
+
+                // Comprobar vecino de la derecha
+                if (j + 1 < Z_big.cols) {
+                    if (currentZone != Z_big.at<int>(i, j + 1)) {
+                        isBorder = true;
+                    }
+                }
+                
+                // Comprobar vecino de abajo
+                if (i + 1 < Z_big.rows) {
+                    if (currentZone != Z_big.at<int>(i + 1, j)) {
+                        isBorder = true;
+                    }
+                }
+
+                if (isBorder) {
+                    // Si esta celda (i, j) está en el borde con otra zona
+                    // la pintamos de negro.
+                    heatmapRGBA.at<cv::Vec4b>(i, j) = cv::Vec4b(0, 0, 0, 255);
+                }
+            }
+        }
+        
+        // Ahora agregamos el borde blanco EXTERIOR que tenía el código original.
         int borderExtension = 2;
         cv::Mat expandedHeatmap;
         cv::copyMakeBorder(heatmapRGBA, expandedHeatmap, borderExtension, borderExtension, 
                           borderExtension, borderExtension, cv::BORDER_CONSTANT, cv::Scalar(255,255,255,255));
 
-        std::vector<int> uniqueZones;
-        for(int i = 0; i < matZ.rows; ++i) {
-            for(int j = 0; j < matZ.cols; ++j) {
-                int zone = matZ.at<int>(i,j);
-                if(std::find(uniqueZones.begin(), uniqueZones.end(), zone) == uniqueZones.end()) {
-                    uniqueZones.push_back(zone);
-                }
-            }
-        }
-
-        for(int zone : uniqueZones) {
-            int minRow = matZ.rows, maxRow = -1, minCol = matZ.cols, maxCol = -1;
-            
-            for(int i = 0; i < matZ.rows; ++i) {
-                for(int j = 0; j < matZ.cols; ++j) {
-                    if(matZ.at<int>(i,j) == zone) {
-                        minRow = std::min(minRow, i);
-                        maxRow = std::max(maxRow, i);
-                        minCol = std::min(minCol, j);
-                        maxCol = std::max(maxCol, j);
-                    }
-                }
-            }
-            
-            bool touchesTop = (minRow == 0);
-            bool touchesBottom = (maxRow == matZ.rows - 1);
-            bool touchesLeft = (minCol == 0);
-            bool touchesRight = (maxCol == matZ.cols - 1);
-            
-            int margin = 2;
-            int topY = minRow * factor + (touchesTop ? -borderExtension : margin) + borderExtension;
-            int bottomY = (maxRow + 1) * factor - (touchesBottom ? -margin : margin) + borderExtension;
-            int leftX = minCol * factor + (touchesLeft ? -borderExtension : margin) + borderExtension;
-            int rightX = (maxCol + 1) * factor - (touchesRight ? -margin : margin) + borderExtension;
-            
-            if (touchesBottom) bottomY = std::min(bottomY + borderExtension, expandedHeatmap.rows - 1);
-            if (touchesRight) rightX = std::min(rightX + borderExtension, expandedHeatmap.cols - 1);
-            
-            cv::Point topLeft(leftX, topY);
-            cv::Point bottomRight(rightX, bottomY);
-            
-            cv::rectangle(expandedHeatmap, topLeft, bottomRight, cv::Scalar(0,0,0,255), 1);
-        }
+        // El antiguo código de 'uniqueZones' y 'cv::rectangle' ya no es necesario.
         
         cv::cvtColor(expandedHeatmap, heatmap, cv::COLOR_BGRA2BGR);
     }
