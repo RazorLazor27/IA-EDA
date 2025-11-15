@@ -85,7 +85,7 @@ int randint(int min, int max) {
  * desde un punto aleatorio diferente.
  *
  * @param instancia Los datos del problema.
- * @return Una `Solucion` inicializada aleatoriamente.
+ * @return Una 'Solucion' inicializada aleatoriamente.
  */
 Solucion generar_solucion_inicial_aleatoria(const Instancia& instancia) {
     Solucion sol(instancia.N_filas, instancia.M_columnas);
@@ -127,16 +127,17 @@ double calcular_varianza(const std::vector<float>& valores) {
         suma_cuadrados_dif += std::pow(val - media, 2);
     }
 
-    // Retornar la varianza
-    return suma_cuadrados_dif / n;
+    double varianza = suma_cuadrados_dif / n;
+    return varianza;
 }
 
 /**
  * @brief Calcula la función de evaluación (costo) de una solución.
  *
- * Basado en el PDF (Estado del Arte), el objetivo es minimizar la
- * pérdida de representatividad, modelada como la MINIMIZACIÓN DE
- * LA SUMA DE LAS VARIANZAS INTERNAS de cada zona.
+ * Según lo investigado en el estado del arte, el objetivo del problema es
+ * minimizar la pérdida de representatividad de las zonas definidas.
+ * Lo que efectivamente se traduce a minimizar la suma de las varianzas internas
+ * de cada zona.
  *
  * @param instancia Los datos del terreno (S).
  * @param solucion La partición de zonas (Z).
@@ -144,10 +145,9 @@ double calcular_varianza(const std::vector<float>& valores) {
  */
 double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
     // Usamos un map para agrupar todos los valores que pertenecen a cada zona
-    // Clave: ID de zona (int), Valor: Vector de valores (float)
     std::map<int, std::vector<float>> valores_por_zona;
 
-    // 1. Agrupar valores por zona
+    //Agrupar valores por zona
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
             int zona_id = solucion.zonas_asignadas[i][j];
@@ -156,7 +156,7 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
         }
     }
 
-    // 2. Calcular la varianza de cada zona y sumarlas
+    // Calcular la varianza de cada zona y sumarlas
     double costo_total = 0.0;
     for (int k = 0; k < instancia.num_zonas; ++k) {
         // Busca la zona k en el map. Si no existe (zona vacía), el vector estará vacío.
@@ -189,54 +189,43 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
  */
 Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion sol_actual) {
     
-    // Calcula el costo de la solución inicial
     sol_actual.costo = evaluar_solucion(instancia, sol_actual);
 
     bool mejora_encontrada;
     do {
         mejora_encontrada = false;
+        bool restart = false;
 
         // Iteramos por cada celda del terreno
-        for (int i = 0; i < instancia.N_filas; ++i) {
-            for (int j = 0; j < instancia.M_columnas; ++j) {
+        for (int i = 0; i < instancia.N_filas && !restart; ++i) {
+            for (int j = 0; j < instancia.M_columnas && !restart; ++j) {
                 
                 int zona_original = sol_actual.zonas_asignadas[i][j];
 
                 // Probamos mover esta celda (i, j) a cada OTRA zona posible
                 for (int nueva_zona = 0; nueva_zona < instancia.num_zonas; ++nueva_zona) {
                     
-                    if (nueva_zona == zona_original) {
-                        continue; // No probamos mover la celda a su propia zona
-                    }
+                    if (nueva_zona == zona_original) continue;
 
-                    // 1. Realizar el movimiento (crear el "vecino")
                     sol_actual.zonas_asignadas[i][j] = nueva_zona;
                     
-                    // 2. Evaluar el costo del vecino
                     double nuevo_costo = evaluar_solucion(instancia, sol_actual);
 
-                    // 3. Aplicar criterio "First Improvement"
+                    // Este es el First 'Improvement' -> si mejora, aceptamos y salimos
                     if (nuevo_costo < sol_actual.costo) {
-                        // ¡Mejora! Aceptamos la nueva solución
-                        sol_actual.costo = nuevo_costo;
-                        mejora_encontrada = true;
                         
-                        // Rompemos los bucles para reiniciar la búsqueda
-                        // desde la nueva solución (sol_actual)
-                        goto reiniciar_busqueda; // Salta al final del bucle 'do-while'
+                        sol_actual.costo = nuevo_costo;
+                        restart = true;
+                        mejora_encontrada = true;
+                        break;
                     } else {
-                        // 4. Deshacer el movimiento (no fue mejor)
+                        // Desahacer el movimiento
                         sol_actual.zonas_asignadas[i][j] = zona_original;
                     }
-                } // fin bucle nueva_zona
-            } // fin bucle j
-        } // fin bucle i
-
-    reiniciar_busqueda:; // Etiqueta para el 'goto'
-    
-    } while (mejora_encontrada); // Repetir mientras encontremos mejoras
-
-    // Devuelve el óptimo local encontrado
+                }
+            }
+        } 
+    } while (mejora_encontrada);
     return sol_actual;
 }
 
@@ -261,25 +250,23 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
 Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
     
     Solucion mejor_solucion_global(instancia.N_filas, instancia.M_columnas);
-    // El costo inicial es infinito
-    
     std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
 
     for (int r = 0; r < num_restarts; ++r) {
         
-        // 1. Generar una solución inicial aleatoria (PUNTO DE PARTIDA)
+        // Generamos una solución inicial aleatoria
         Solucion sol_inicial = generar_solucion_inicial_aleatoria(instancia);
 
-        // 2. Optimizarla con Hill Climbing (encontrar el óptimo local)
+        // Mejoramos dicha solucion con Hill Climbing
         Solucion sol_optimo_local = hill_climbing_first_improvement(instancia, sol_inicial);
 
         std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
                   << " -> Costo (Varianza Total): " << sol_optimo_local.costo << std::endl;
 
-        // 3. Comparar con la mejor solución encontrada hasta ahora
+        // Comparamos con la mejor solución global encontrada hasta ahora
         if (sol_optimo_local.costo < mejor_solucion_global.costo) {
             mejor_solucion_global = sol_optimo_local;
-            std::cout << "  *** ¡Nueva mejor solucion encontrada! ***" << std::endl;
+            std::cout << "  --> Nueva mejor solucion encontrada! " << std::endl;
         }
     }
 
@@ -291,12 +278,6 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
 
     return mejor_solucion_global;
 }
-
-
-// --------------------------------------------------------------------------
-// FUNCIÓN PRINCIPAL (main)
-// --------------------------------------------------------------------------
-// Aquí es donde unimos todo.
 // --------------------------------------------------------------------------
 int main() {
     
@@ -333,7 +314,7 @@ int main() {
     std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
     
     plotHeatmap(instancia_problema.datos_terreno, 
-                30, // Factor de zoom (más grande para ver mejor)
+                30,
                 solucion_final.zonas_asignadas);
 
     return 0;
