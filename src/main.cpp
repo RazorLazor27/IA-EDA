@@ -5,6 +5,7 @@
 #include <random>     // Para generación de números aleatorios (proceso estocástico)
 #include <limits>     // Para std::numeric_limits
 #include <map>        // Para agrupar valores por zona
+#include <fstream>    // Para lectura de archivos
 
 // --------------------------------------------------------------------------
 // DECLARACIÓN DE LA FUNCIÓN DE VISUALIZACIÓN
@@ -278,20 +279,53 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
 
     return mejor_solucion_global;
 }
-// --------------------------------------------------------------------------
-int main() {
+
+/**
+ * @brief Lee los datos del terreno desde un archivo de texto .spp
+ * 
+ * El archivo debe tener el siguiente formato:
+ * 
+ * * - La primera línea contiene dos enteros: m n (número de filas y columnas)
+ * 
+ * * - Las siguientes m líneas contienen n valores flotantes cada una,
+ *   separados por espacios, representando los datos del terreno.
+ */
+std::vector<std::vector<float>> leer_datos(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("No se pudo abrir el archivo: " + filename);
+    }
+
+    int m, n;
+    file >> m >> n;
+    std::vector<std::vector<float>> datos(m, std::vector<float>(n));
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            file >> datos[i][j];
+        }
+    }
+    return datos;
+}
+
+int main(int argc, char* argv[]) {
     
-    // --- 1. Lectura de Instancia ---
-    // (Datos de ejemplo del 'main.cpp' original)
-    std::vector<std::vector<float>> datos = {
-        {10.1, 12.3, 15.8, 18.2},
-        {11.5, 13.7, 16.9, 19.4},
-        {13.2, 15.1, 18.3, 20.7},
-        {15.8, 17.6, 20.1, 22.9}
-    };
+    // Cargamos los datos del terreno desde un archivo
+    if (argc < 2) {
+        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp>" << std::endl;
+        return 1;
+    }
+    std::string archivo_datos = argv[1];
+    auto datos = leer_datos("instances/" + archivo_datos);
+
+    for (const auto& fila : datos) {
+            for (float x : fila)
+                std::cout << x << " ";
+            std::cout << "\n";
+        }
+
+    // Definimos el número zonas
+    int p_zonas = std::stoi(argv[2]);
     
-    // Definimos el número de sensores (zonas) que queremos
-    int p_zonas = 4;
     
     Instancia instancia_problema(datos, p_zonas);
 
