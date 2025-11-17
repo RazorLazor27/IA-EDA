@@ -8,7 +8,7 @@
  * Genera y visualiza un mapa de calor con delimitación opcional de zonas
  * (Documentación Doxygen omitida por brevedad, es la misma que antes)
  */
-void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}) {
+void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false) {
     int rows = M.size();
     int cols = M[0].size();
     cv::Mat matM(rows, cols, CV_32F);
@@ -69,57 +69,49 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
         
         // --- NUEVO: Poner etiquetas de texto en CADA CELDA ---
         
-        // Determinar un tamaño de fuente legible basado en el factor de escala
-        // Ajusta estos valores si el texto es muy grande o muy pequeño
-        double fontScale = std::min(0.8, std::max(0.2, (double)factor / 40.0));
-        int thickness = (fontScale > 0.4) ? 2 : 1;
+        if (showLabels) {
+            double fontScale = std::min(0.8, std::max(0.2, (double)factor / 40.0));
+            int thickness = (fontScale > 0.4) ? 2 : 1;
 
-        // Iteramos sobre la matriz de zonas ORIGINAL (matZ)
-        for(int i = 0; i < matZ.rows; ++i) {
-            for(int j = 0; j < matZ.cols; ++j) {
-                
-                // 1. Obtener el ID de la zona
-                int zone_id = matZ.at<int>(i,j);
-                std::string zone_text = std::to_string(zone_id);
+            // Iteramos sobre la matriz de zonas ORIGINAL (matZ)
+            for(int i = 0; i < matZ.rows; ++i) {
+                for(int j = 0; j < matZ.cols; ++j) {
+                    
+                   
+                    int zone_id = matZ.at<int>(i,j);
+                    std::string zone_text = std::to_string(zone_id);
 
-                // 2. Calcular el centro de ESTA celda en la imagen escalada
-                int draw_x = static_cast<int>((j + 0.5) * factor);
-                int draw_y = static_cast<int>((i + 0.5) * factor);
+                    int draw_x = static_cast<int>((j + 0.5) * factor);
+                    int draw_y = static_cast<int>((i + 0.5) * factor);
 
-                // 3. Centrar el texto en ese punto
-                cv::Size textSize = cv::getTextSize(zone_text, cv::FONT_HERSHEY_SIMPLEX, fontScale, thickness, 0);
-                cv::Point textOrg(draw_x - textSize.width / 2, draw_y + textSize.height / 2);
+                    cv::Size textSize = cv::getTextSize(zone_text, cv::FONT_HERSHEY_SIMPLEX, fontScale, thickness, 0);
+                    cv::Point textOrg(draw_x - textSize.width / 2, draw_y + textSize.height / 2);
 
-                // 4. Dibujar el texto (con borde negro para contraste)
-                cv::putText(heatmapRGBA, 
-                            zone_text, 
-                            textOrg, 
-                            cv::FONT_HERSHEY_SIMPLEX, 
-                            fontScale,
-                            cv::Scalar(0, 0, 0, 255), // Borde negro
-                            thickness + 1, // Borde un poco más grueso
-                            cv::LINE_AA);
-                cv::putText(heatmapRGBA, 
-                            zone_text, 
-                            textOrg, 
-                            cv::FONT_HERSHEY_SIMPLEX, 
-                            fontScale,
-                            cv::Scalar(255, 255, 255, 255), // Relleno blanco
-                            thickness,
-                            cv::LINE_AA);
+                    cv::putText(heatmapRGBA, 
+                                zone_text, 
+                                textOrg, 
+                                cv::FONT_HERSHEY_SIMPLEX, 
+                                fontScale,
+                                cv::Scalar(0, 0, 0, 255), // Borde negro
+                                thickness + 1, // Borde un poco más grueso
+                                cv::LINE_AA);
+                    cv::putText(heatmapRGBA, 
+                                zone_text, 
+                                textOrg, 
+                                cv::FONT_HERSHEY_SIMPLEX, 
+                                fontScale,
+                                cv::Scalar(255, 255, 255, 255), // Relleno blanco
+                                thickness,
+                                cv::LINE_AA);
+                }
             }
         }
-        
-        // --- LÓGICA ANTERIOR DE CENTROIDES ELIMINADA ---
-        
         // Ahora agregamos el borde blanco EXTERIOR que tenía el código original.
         int borderExtension = 2;
         cv::Mat expandedHeatmap;
         cv::copyMakeBorder(heatmapRGBA, expandedHeatmap, borderExtension, borderExtension, 
                           borderExtension, borderExtension, cv::BORDER_CONSTANT, cv::Scalar(255,255,255,255));
 
-        // El antiguo código de 'uniqueZones' y 'cv::rectangle' ya no es necesario.
-        
         cv::cvtColor(expandedHeatmap, heatmap, cv::COLOR_BGRA2BGR);
     }
 

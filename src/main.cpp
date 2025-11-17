@@ -14,7 +14,7 @@
 // Esta función está definida en heatmap.cpp y la usaremos para mostrar
 // el resultado final.
 // --------------------------------------------------------------------------
-void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {});
+void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false);
 
 // --------------------------------------------------------------------------
 // ESTRUCTURAS DE DATOS PRINCIPALES
@@ -342,9 +342,19 @@ int main(int argc, char* argv[]) {
         std::cerr << "Ejemplo: " << argv[0] << " instancia_ejemplo.spp 4 0.25" << std::endl;
         return 1;
     }
+
     std::string archivo_datos = argv[1];
     int p_zonas = std::stoi(argv[2]);
     double alpha = std::stod(argv[3]);
+
+    bool mostrar_etiquetas = false;
+
+    if (argc >= 5) {
+        std::string etiqueta_flag = argv[4];
+        if (etiqueta_flag == "--show-labels") {
+            mostrar_etiquetas = true;
+        }
+    }
 
     if (alpha < 0.0 || alpha > 1.0) {
         std::cerr << "Error: alpha debe estar entre 0.0 y 1.0" << std::endl;
@@ -402,8 +412,9 @@ int main(int argc, char* argv[]) {
     std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
     
     plotHeatmap(instancia_problema.datos_terreno, 
-                40,
-                zonas_para_mostrar);
+                30,
+                zonas_para_mostrar,
+                mostrar_etiquetas);
 
     return 0;
 }
