@@ -6,6 +6,7 @@
 #include <limits>     // Para std::numeric_limits
 #include <map>        // Para agrupar valores por zona
 #include <fstream>    // Para lectura de archivos
+#include <string>
 
 // --------------------------------------------------------------------------
 // DECLARACIÓN DE LA FUNCIÓN DE VISUALIZACIÓN
@@ -133,6 +134,19 @@ double calcular_varianza(const std::vector<float>& valores) {
 }
 
 /**
+ * @brief Calcula la varianza total de todos los datos en la instancia.
+ */
+double calcular_varianza_total(const Instancia& instancia){
+    std::vector<float> full_data;
+    for (int i = 0; i < instancia.N_filas; ++i) {
+        for (int j = 0; j < instancia.M_columnas; ++j) {
+            full_data.push_back(instancia.datos_terreno[i][j]);
+        }
+    }
+    return calcular_varianza(full_data);
+}
+
+/**
  * @brief Calcula la función de evaluación (costo) de una solución.
  *
  * Según lo investigado en el estado del arte, el objetivo del problema es
@@ -144,13 +158,14 @@ double calcular_varianza(const std::vector<float>& valores) {
  * @param solucion La partición de zonas (Z).
  * @return El costo total (Suma de Varianzas Internas) como un 'double'.
  */
-double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
+double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, double umbral_varianza) {
     // Usamos un map para agrupar todos los valores que pertenecen a cada zona
     std::map<int, std::vector<float>> valores_por_zona;
 
     //Agrupar valores por zona
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
+
             int zona_id = solucion.zonas_asignadas[i][j];
             float valor_dato = instancia.datos_terreno[i][j];
             valores_por_zona[zona_id].push_back(valor_dato);
@@ -159,12 +174,20 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
 
     // Calcular la varianza de cada zona y sumarlas
     double costo_total = 0.0;
+    double penalizacion = 0.0;
+    const double deterrant = 1e9; // Factor de penalización muuuuy grande
+
     for (int k = 0; k < instancia.num_zonas; ++k) {
         // Busca la zona k en el map. Si no existe (zona vacía), el vector estará vacío.
-        costo_total += calcular_varianza(valores_por_zona[k]);
+        double varianza_zona = calcular_varianza(valores_por_zona[k]);
+        costo_total += varianza_zona;
+        if (varianza_zona > umbral_varianza) {
+            // Si no cumple el umbral, aplicamos una penalización grande
+            penalizacion += (varianza_zona - umbral_varianza) * deterrant;
+        }
     }
-
-    return costo_total;
+    // Como estamos minimizando los valores, la penalización se suma al costo total
+    return costo_total + penalizacion;
 }
 
 // --------------------------------------------------------------------------
@@ -188,9 +211,9 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion) {
  * @param sol_inicial La solución desde la cual comenzar la búsqueda.
  * @return La `Solucion` optimizada (óptimo local).
  */
-Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion sol_actual) {
+Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion sol_actual, double umbral_varianza) {
     
-    sol_actual.costo = evaluar_solucion(instancia, sol_actual);
+    sol_actual.costo = evaluar_solucion(instancia, sol_actual, umbral_varianza);
 
     bool mejora_encontrada;
     do {
@@ -210,7 +233,7 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
 
                     sol_actual.zonas_asignadas[i][j] = nueva_zona;
                     
-                    double nuevo_costo = evaluar_solucion(instancia, sol_actual);
+                    double nuevo_costo = evaluar_solucion(instancia, sol_actual, umbral_varianza);
 
                     // Este es el First 'Improvement' -> si mejora, aceptamos y salimos
                     if (nuevo_costo < sol_actual.costo) {
@@ -248,7 +271,7 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
  * @param num_restarts El número de veces que se reiniciará el algoritmo.
  * @return La mejor `Solucion` encontrada globalmente.
  */
-Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
+Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, double umbral_varianza) {
     
     Solucion mejor_solucion_global(instancia.N_filas, instancia.M_columnas);
     std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
@@ -259,10 +282,10 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
         Solucion sol_inicial = generar_solucion_inicial_aleatoria(instancia);
 
         // Mejoramos dicha solucion con Hill Climbing
-        Solucion sol_optimo_local = hill_climbing_first_improvement(instancia, sol_inicial);
+        Solucion sol_optimo_local = hill_climbing_first_improvement(instancia, sol_inicial, umbral_varianza);
 
         std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
-                  << " -> Costo (Varianza Total): " << sol_optimo_local.costo << std::endl;
+                  << " -> Costo (Con Penalización) " << sol_optimo_local.costo << std::endl;
 
         // Comparamos con la mejor solución global encontrada hasta ahora
         if (sol_optimo_local.costo < mejor_solucion_global.costo) {
@@ -273,9 +296,13 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts) {
 
     std::cout << "---------------------------------------------------" << std::endl;
     std::cout << "Optimizacion finalizada." << std::endl;
-    std::cout << "Mejor costo (Varianza Total) encontrado: " 
-              << mejor_solucion_global.costo << std::endl;
+
+    // Mostramos la mejor solucion sin penalizacion (asumiendo que se llego a una solución valida)
+    double costo_sin_penalizacion = evaluar_solucion(instancia, mejor_solucion_global, std::numeric_limits<double>::infinity());
+    std::cout << "Mejor Costo Final (sin penalizacion): " << costo_sin_penalizacion << std::endl;
+    std::cout << "Mejor Costo Final (con penalizacion): " << mejor_solucion_global.costo << std::endl;
     std::cout << "---------------------------------------------------" << std::endl;
+
 
     return mejor_solucion_global;
 }
@@ -310,24 +337,39 @@ std::vector<std::vector<float>> leer_datos(const std::string& filename) {
 int main(int argc, char* argv[]) {
     
     // Cargamos los datos del terreno desde un archivo
-    if (argc < 2) {
-        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp>" << std::endl;
+    if (argc < 4) {
+        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp> <num_zonas> <alpha>" << std::endl;
+        std::cerr << "Ejemplo: " << argv[0] << " instancia_ejemplo.spp 4 0.25" << std::endl;
         return 1;
     }
     std::string archivo_datos = argv[1];
+    int p_zonas = std::stoi(argv[2]);
+    double alpha = std::stod(argv[3]);
+
+    if (alpha < 0.0 || alpha > 1.0) {
+        std::cerr << "Error: alpha debe estar entre 0.0 y 1.0" << std::endl;
+        return 1;
+    }
+
     auto datos = leer_datos("instances/" + archivo_datos);
+    Instancia instancia_problema(datos, p_zonas);
 
     for (const auto& fila : datos) {
-            for (float x : fila)
-                std::cout << x << " ";
-            std::cout << "\n";
-        }
+        for (float x : fila)
+            std::cout << x << " ";
+        std::cout << "\n";
+    }
 
-    // Definimos el número zonas
-    int p_zonas = std::stoi(argv[2]);
+    double varianza_total_S = calcular_varianza_total(instancia_problema);
+    double umbral_varianza_max = alpha * varianza_total_S;
+
+    std::cout << "----------------------------------------------------------" << std::endl;
+    std::cout << "Instancia cargada: " << instancia_problema.N_filas << "x" << instancia_problema.M_columnas << std::endl;
+    std::cout << "Numero de zonas (p): " << p_zonas << std::endl;
+    std::cout << "Nivel de homogeneidad (alpha): " << alpha << std::endl;
+    std::cout << "Varianza Total (Var(S)): " << varianza_total_S << std::endl;
+    std::cout << "Umbral Max. Varianza por Zona (alpha * Var(S)): " << umbral_varianza_max << std::endl;
     
-    
-    Instancia instancia_problema(datos, p_zonas);
 
     // Definimos cuántos "restarts" queremos hacer.
     // Más restarts = más tiempo, pero mayor probabilidad de una buena solución.
@@ -338,7 +380,19 @@ int main(int argc, char* argv[]) {
     //   - Generación de Solución Inicial (aleatoria, para cada restart)
     //   - Cálculo de Función de Evaluación (dentro del Hill Climbing)
     //   - Hill Climbing First Improvement
-    Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts);
+    Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts, umbral_varianza_max);
+
+    // 5. PREPARAR Y VISUALIZAR LA SOLUCIÓN
+    
+    // REQUISITO PDF: Etiquetas deben ser de 1 a p (no de 0 a p-1)
+    // Hacemos una copia y sumamos 1 a todas las celdas para la visualización.
+    std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
+    for (int i = 0; i < instancia_problema.N_filas; ++i) {
+        for (int j = 0; j < instancia_problema.M_columnas; ++j) {
+            zonas_para_mostrar[i][j] += 1;
+        }
+    }
+
 
     // --- 3. Visualizar la Solución Final ---
     // Usamos la función de 'heatmap.cpp' para mostrar
@@ -348,8 +402,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
     
     plotHeatmap(instancia_problema.datos_terreno, 
-                30,
-                solucion_final.zonas_asignadas);
+                40,
+                zonas_para_mostrar);
 
     return 0;
 }
