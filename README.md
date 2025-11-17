@@ -1,4 +1,4 @@
-# IA - Estado del Arte
+# IA - Estado de Avance
 
 ## Requisitos Previos
 
