@@ -27,10 +27,9 @@ Si se quiere ver la distribución de zonas según su ID (ver a que numero corres
 ```
 ## Ejemplo:
 ```bash
-./spp_solver Pequeñas/pequena_5.spp 10 0.9 --show-labels
-
-./spp_solver Medianas/mediana_1.spp 7 0.4 
-
-./spp_solver Grandes/grande_3.spp 15 0.3 --show-labels
+./spp_solver Pequeñas/pequena_5.spp 10 0.9 
+![no se que hace esto.](/visual_test_results/readme/Map_1.png)
+./spp_solver Pequeñas/pequena_2.spp 4 0.25 --show-labels
+![alo](/visual_test_results/readme/Map_2.png)
 
 ```
