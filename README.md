@@ -29,9 +29,9 @@ Si se quiere ver la distribución de zonas según su ID (ver a que numero corres
 ```bash
 ./spp_solver Pequeñas/pequena_5.spp 10 0.9 
 ```
-![no se que hace esto.](/visual_test_results/readme/Map_1.png)
+![Instancia 1](/visual_test_results/readme/Map_1.png)
 
 ```bash
 ./spp_solver Pequeñas/pequena_2.spp 4 0.25 --show-labels
 ```
-![alo](/visual_test_results/readme/Map_2.png)
+![Instancia 2](/visual_test_results/readme/Map_2.png)
