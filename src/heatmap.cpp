@@ -1,13 +1,8 @@
 #include <opencv2/opencv.hpp>
 #include <algorithm>
 #include <vector>
-// #include <map> // Ya no es necesario para los centroides
 #include <string> // Para std::to_string
 
-/**
- * Genera y visualiza un mapa de calor con delimitación opcional de zonas
- * (Documentación Doxygen omitida por brevedad, es la misma que antes)
- */
 void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false) {
     int rows = M.size();
     int cols = M[0].size();
@@ -43,7 +38,6 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
         cv::Mat Z_big;
         cv::resize(matZ, Z_big, cv::Size(), factor, factor, cv::INTER_NEAREST);
 
-        // --- LÓGICA DE DIBUJO DE BORDES MEJORADA ---
         for (int i = 0; i < Z_big.rows; ++i) {
             for (int j = 0; j < Z_big.cols; ++j) {
                 int currentZone = Z_big.at<int>(i, j);
@@ -67,13 +61,13 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
             }
         }
         
-        // --- NUEVO: Poner etiquetas de texto en CADA CELDA ---
+        // La flag para mostrar los id de cada zona
         
         if (showLabels) {
             double fontScale = std::min(0.8, std::max(0.2, (double)factor / 40.0));
             int thickness = (fontScale > 0.4) ? 2 : 1;
 
-            // Iteramos sobre la matriz de zonas ORIGINAL (matZ)
+            // Iteramos sobre la matriz de zonas ORIGINAL
             for(int i = 0; i < matZ.rows; ++i) {
                 for(int j = 0; j < matZ.cols; ++j) {
                     
@@ -92,21 +86,21 @@ void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std
                                 textOrg, 
                                 cv::FONT_HERSHEY_SIMPLEX, 
                                 fontScale,
-                                cv::Scalar(0, 0, 0, 255), // Borde negro
-                                thickness + 1, // Borde un poco más grueso
+                                cv::Scalar(0, 0, 0, 255),
+                                thickness + 1, 
                                 cv::LINE_AA);
                     cv::putText(heatmapRGBA, 
                                 zone_text, 
                                 textOrg, 
                                 cv::FONT_HERSHEY_SIMPLEX, 
                                 fontScale,
-                                cv::Scalar(255, 255, 255, 255), // Relleno blanco
+                                cv::Scalar(255, 255, 255, 255), 
                                 thickness,
                                 cv::LINE_AA);
                 }
             }
         }
-        // Ahora agregamos el borde blanco EXTERIOR que tenía el código original.
+        
         int borderExtension = 2;
         cv::Mat expandedHeatmap;
         cv::copyMakeBorder(heatmapRGBA, expandedHeatmap, borderExtension, borderExtension, 

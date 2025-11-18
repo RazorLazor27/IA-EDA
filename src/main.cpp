@@ -8,12 +8,7 @@
 #include <fstream>    // Para lectura de archivos
 #include <string>
 
-// --------------------------------------------------------------------------
-// DECLARACIÓN DE LA FUNCIÓN DE VISUALIZACIÓN
-// --------------------------------------------------------------------------
-// Esta función está definida en heatmap.cpp y la usaremos para mostrar
-// el resultado final.
-// --------------------------------------------------------------------------
+// Muestra el mapa de calor
 void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false);
 
 // --------------------------------------------------------------------------
@@ -61,7 +56,6 @@ struct Solucion {
 // --------------------------------------------------------------------------
 // MOTOR DE NÚMEROS ALEATORIOS (Para 'Restart')
 // --------------------------------------------------------------------------
-// Usamos el motor moderno de C++ para aleatoriedad de alta calidad.
 std::mt19937 gen(std::random_device{}()); // Generador Mersenne Twister
 
 /**
@@ -76,7 +70,7 @@ int randint(int min, int max) {
 // IMPLEMENTACIÓN MÍNIMA REQUERIDA
 // --------------------------------------------------------------------------
 
-// --- 1. Generación de Solución Inicial (Greedy / Aleatoria) ---
+// 1. Generación de Solución Inicial (Greedy / Aleatoria)
 
 /**
  * @brief Genera una solución inicial aleatoria.
@@ -102,7 +96,7 @@ Solucion generar_solucion_inicial_aleatoria(const Instancia& instancia) {
     return sol;
 }
 
-// --- 2. Cálculo de Función de Evaluación ---
+// 2. Cálculo de Función de Evaluación
 
 /**
  * @brief Función auxiliar para calcular la varianza de un conjunto de datos.
@@ -190,9 +184,7 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
     return costo_total + penalizacion;
 }
 
-// --------------------------------------------------------------------------
-// ALGORITMO: HILL CLIMBING (FIRST IMPROVEMENT)
-// --------------------------------------------------------------------------
+// Algoritmo Hill Climbing 
 
 /**
  * @brief Implementa la búsqueda local Hill Climbing con estrategia "First Improvement".
@@ -254,9 +246,7 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
 }
 
 
-// --------------------------------------------------------------------------
-// ALGORITMO PRINCIPAL: HILL CLIMBING CON RESTART
-// --------------------------------------------------------------------------
+// Implementacion del Restart en First improvement
 
 /**
  * @brief Resuelve el problema usando Hill Climbing con Múltiples Restarts.
@@ -381,20 +371,12 @@ int main(int argc, char* argv[]) {
     std::cout << "Umbral Max. Varianza por Zona (alpha * Var(S)): " << umbral_varianza_max << std::endl;
     
 
-    // Definimos cuántos "restarts" queremos hacer.
     // Más restarts = más tiempo, pero mayor probabilidad de una buena solución.
     int num_restarts = 20;
 
-    // --- 2. Resolver el Problema ---
-    // Esto ejecuta:
-    //   - Generación de Solución Inicial (aleatoria, para cada restart)
-    //   - Cálculo de Función de Evaluación (dentro del Hill Climbing)
-    //   - Hill Climbing First Improvement
+    // Todo el codigo corre con esta linea jajaj
     Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts, umbral_varianza_max);
 
-    // 5. PREPARAR Y VISUALIZAR LA SOLUCIÓN
-    
-    // REQUISITO PDF: Etiquetas deben ser de 1 a p (no de 0 a p-1)
     // Hacemos una copia y sumamos 1 a todas las celdas para la visualización.
     std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
     for (int i = 0; i < instancia_problema.N_filas; ++i) {
@@ -404,10 +386,8 @@ int main(int argc, char* argv[]) {
     }
 
 
-    // --- 3. Visualizar la Solución Final ---
-    // Usamos la función de 'heatmap.cpp' para mostrar
-    // el mapa de calor de los DATOS (instancia_problema.datos_terreno)
-    // con las ZONAS (solucion_final.zonas_asignadas) superpuestas.
+    // Aqui se muestra efectivamente el mapa de calor 
+    
     std::cout << "Mostrando mapa de calor de la solucion final..." << std::endl;
     std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
     
