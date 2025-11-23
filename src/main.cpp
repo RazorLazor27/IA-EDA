@@ -7,6 +7,7 @@
 #include <map>        // Para agrupar valores por zona
 #include <fstream>    // Para lectura de archivos
 #include <string>
+#include <chrono>
 
 // Muestra el mapa de calor
 void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false);
@@ -331,7 +332,7 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
 Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, double umbral_varianza) {
     
     Solucion mejor_solucion_global(instancia.N_filas, instancia.M_columnas);
-    std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
+    // std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
 
     for (int r = 0; r < num_restarts; ++r) {
         
@@ -341,8 +342,8 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, doub
         // Mejoramos dicha solucion con Hill Climbing
         Solucion sol_optimo_local = hill_climbing_first_improvement(instancia, sol_inicial, umbral_varianza);
 
-        std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
-                  << " -> Costo (Con Penalización) " << sol_optimo_local.costo << std::endl;
+        // std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
+        //           << " -> Costo (Con Penalización) " << sol_optimo_local.costo << std::endl;
 
         // Comparamos con la mejor solución global encontrada hasta ahora
         if (sol_optimo_local.costo < mejor_solucion_global.costo) {
@@ -350,14 +351,6 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, doub
             std::cout << "  --> Nueva mejor solucion encontrada! " << std::endl;
         }
     }
-
-    std::cout << "---------------------------------------------------" << std::endl;
-    std::cout << "Optimizacion finalizada." << std::endl;
-    
-    std::cout << "Mejor Costo Total (Varianza + Penalizaciones): " << mejor_solucion_global.costo << std::endl;
-    std::cout << "---------------------------------------------------" << std::endl;
-
-
 
     return mejor_solucion_global;
 }
@@ -390,76 +383,74 @@ std::vector<std::vector<float>> leer_datos(const std::string& filename) {
 }
 
 int main(int argc, char* argv[]) {
-    
-    // Cargamos los datos del terreno desde un archivo
-    if (argc < 4) {
-        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp> <num_zonas> <alpha>" << std::endl;
-        std::cerr << "Ejemplo: " << argv[0] << " instancia_ejemplo.spp 4 0.25" << std::endl;
-        return 1;
+
+    // Detectar bandera --no-gui
+    bool no_gui = false;
+    for(int i=0; i<argc; ++i) {
+        std::string s = argv[i];
+        if (s == "--no-gui") no_gui = true;
     }
 
+    if (argc < 4) {
+        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp> <num_zonas> <alpha> [options]" << std::endl;
+        return 1;
+    }
+    
     std::string archivo_datos = argv[1];
     int p_zonas = std::stoi(argv[2]);
     double alpha = std::stod(argv[3]);
-
+    
     bool mostrar_etiquetas = false;
-
+    // Chequeo simple para el 4to argumento si no es --no-gui
     if (argc >= 5) {
-        std::string etiqueta_flag = argv[4];
-        if (etiqueta_flag == "--show-labels") {
-            mostrar_etiquetas = true;
-        }
-    }
-
-    if (alpha < 0.0 || alpha > 1.0) {
-        std::cerr << "Error: alpha debe estar entre 0.0 y 1.0" << std::endl;
-        return 1;
+        std::string arg = argv[4];
+        if (arg == "1" || arg == "true") mostrar_etiquetas = true;
     }
 
     auto datos = leer_datos("instances/" + archivo_datos);
     Instancia instancia_problema(datos, p_zonas);
 
-    // for (const auto& fila : datos) {
-    //     for (float x : fila)
-    //         std::cout << x << " ";
-    //     std::cout << "\n";
-    // }
-
     double varianza_total_S = calcular_varianza_total(instancia_problema);
     double umbral_varianza_max = alpha * varianza_total_S;
-
-    std::cout << "----------------------------------------------------------" << std::endl;
-    std::cout << "Instancia cargada: " << instancia_problema.N_filas << "x" << instancia_problema.M_columnas << std::endl;
-    std::cout << "Numero de zonas (p): " << p_zonas << std::endl;
-    std::cout << "Nivel de homogeneidad (alpha): " << alpha << std::endl;
-    std::cout << "Varianza Total (Var(S)): " << varianza_total_S << std::endl;
-    std::cout << "Umbral Max. Varianza por Zona (alpha * Var(S)): " << umbral_varianza_max << std::endl;
     
-
-    // Más restarts = más tiempo, pero mayor probabilidad de una buena solución.
-    int num_restarts = 20*2;
-
-    // Todo el codigo corre con esta linea jajaj
-    Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts, umbral_varianza_max);
-
-    // Hacemos una copia y sumamos 1 a todas las celdas para la visualización.
-    std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
-    for (int i = 0; i < instancia_problema.N_filas; ++i) {
-        for (int j = 0; j < instancia_problema.M_columnas; ++j) {
-            zonas_para_mostrar[i][j] += 1;
-        }
+    if (!no_gui) {
+        std::cout << "Instancia cargada: " << instancia_problema.N_filas << "x" << instancia_problema.M_columnas << std::endl;
+        std::cout << "Varianza Total (Var(S)): " << varianza_total_S << std::endl;
     }
-
-
-    // Aqui se muestra efectivamente el mapa de calor 
     
-    std::cout << "Mostrando mapa de calor de la solucion final..." << std::endl;
-    std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
-    
-    plotHeatmap(instancia_problema.datos_terreno, 
-                30,
-                zonas_para_mostrar,
-                mostrar_etiquetas);
+    int num_restarts = 20;
 
-    return 0;
+    // --- MEDICIÓN DE TIEMPO ---
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    Solucion solucion_final = resolver_con_restart(
+                                    instancia_problema, 
+                                    num_restarts, 
+                                    umbral_varianza_max);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    // --------------------------
+
+    double costo_sin_penalizacion = evaluar_solucion(instancia_problema, solucion_final, std::numeric_limits<double>::infinity());
+
+    // SALIDA PARA EL SCRIPT (Formato fijo)
+    std::cout << "Mejor Costo Final (sin penalizacion): " << costo_sin_penalizacion << std::endl;
+    std::cout << "Mejor Costo Final (con penalizacion): " << solucion_final.costo << std::endl;
+    std::cout << "Tiempo de ejecucion: " << duration.count() << " segundos" << std::endl;
+
+    // Solo mostrar gráfico si NO estamos en modo script
+    if (!no_gui) {
+        std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
+        for (int i = 0; i < instancia_problema.N_filas; ++i) {
+            for (int j = 0; j < instancia_problema.M_columnas; ++j) {
+                zonas_para_mostrar[i][j] += 1;
+            }
+        }
+        std::cout << "Mostrando mapa de calor..." << std::endl;
+        plotHeatmap(instancia_problema.datos_terreno, 
+                    30,
+                    zonas_para_mostrar,
+                    mostrar_etiquetas); 
+    }
 }

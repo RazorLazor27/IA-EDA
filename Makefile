@@ -1,25 +1,24 @@
-# --- Makefile para compilar el proyecto SPP Solver ---
-CXX      = g++
-CXXFLAGS = -std=c++17 -Wall -O3
-
-INCLUDES = -I/usr/include/opencv4
-
-# librerias de OpenCV necesarias
-LIBS     = -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
-
-# Nombre del ejecutable
-TARGET   = spp_solver
+# Definición de compilador y flags
+CXX = g++
+CXXFLAGS = -I/usr/include/opencv4
+LDFLAGS = -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
+TARGET = spp_solver
+SRC_DIR = src
 
 # Archivos fuente
-SRCS     = src/main.cpp src/heatmap.cpp
+SOURCES = $(SRC_DIR)/main.cpp $(SRC_DIR)/heatmap.cpp
 
+# Regla por defecto (lo que pasa cuando escribes 'make')
 all: $(TARGET)
 
-$(TARGET): $(SRCS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(SRCS) -o $(TARGET) $(LIBS)
-	@echo "Ejecutable: ./$(TARGET)"
+# Regla de compilación
+$(TARGET): $(SOURCES)
+	@echo "Compilando proyecto..."
+	$(CXX) $(SOURCES) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET)
+	@echo "Compilación exitosa: $(TARGET) generado."
 
+# Regla de limpieza (lo que pasa cuando escribes 'make clean')
 clean:
+	@echo "Limpiando archivos temporales..."
 	rm -f $(TARGET)
-
-.PHONY: all clean
+	@echo "Limpieza completada."
