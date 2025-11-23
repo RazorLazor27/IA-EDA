@@ -53,6 +53,10 @@ struct Solucion {
     }
 };
 
+struct Punto {
+    int r,c;
+};
+
 // --------------------------------------------------------------------------
 // MOTOR DE NÚMEROS ALEATORIOS (Para 'Restart')
 // --------------------------------------------------------------------------
@@ -66,11 +70,8 @@ int randint(int min, int max) {
     return dis(gen);
 }
 
-// --------------------------------------------------------------------------
-// IMPLEMENTACIÓN MÍNIMA REQUERIDA
-// --------------------------------------------------------------------------
 
-// 1. Generación de Solución Inicial (Greedy / Aleatoria)
+// 1. Generación de Solución Inicial (Greedy Espacial o Aleatoria)
 
 /**
  * @brief Genera una solución inicial aleatoria.
@@ -86,10 +87,35 @@ int randint(int min, int max) {
 Solucion generar_solucion_inicial_aleatoria(const Instancia& instancia) {
     Solucion sol(instancia.N_filas, instancia.M_columnas);
 
+    std::vector<Punto> semillas;
+    while (semillas.size() < instancia.num_zonas) {
+        Punto p = {randint(0, instancia.N_filas -1), randint(0, instancia.M_columnas -1)};
+        bool existe = false;
+        for (const auto& s : semillas) {
+            if (s.r == p.r && s.c == p.c) {
+                existe = true;
+                break;
+            }
+        }
+        if (!existe) {
+            semillas.push_back(p);
+        }
+    }
+
+    // Ahora la asignacion greedy espacial
+
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
-            // Asigna un ID de zona aleatorio entre 0 y p-1
-            sol.zonas_asignadas[i][j] = randint(0, instancia.num_zonas - 1);
+            int zona_mas_cercana = 0;
+            double distancia_minima = std::numeric_limits<double>::infinity();
+            for (int k = 0; k < instancia.num_zonas; ++k) {
+                double distancia = std::sqrt(std::pow(i - semillas[k].r, 2) + std::pow(j - semillas[k].c, 2));
+                if (distancia < distancia_minima) {
+                    distancia_minima = distancia;
+                    zona_mas_cercana = k;
+                }
+            }
+            sol.zonas_asignadas[i][j] = zona_mas_cercana;
         }
     }
     // El costo se calculará por separado
@@ -156,7 +182,7 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
     // Usamos un map para agrupar todos los valores que pertenecen a cada zona
     std::map<int, std::vector<float>> valores_por_zona;
 
-    //Agrupar valores por zona
+    // Calculo de varianza por zona
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
 
@@ -166,9 +192,8 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
         }
     }
 
-    // Calcular la varianza de cada zona y sumarlas
     double costo_total = 0.0;
-    double penalizacion = 0.0;
+    double penalizacion_homogeneidad = 0.0;
     const double deterrant = 1e9; // Factor de penalización muuuuy grande
 
     for (int k = 0; k < instancia.num_zonas; ++k) {
@@ -177,11 +202,53 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
         costo_total += varianza_zona;
         if (varianza_zona > umbral_varianza) {
             // Si no cumple el umbral, aplicamos una penalización grande
-            penalizacion += (varianza_zona - umbral_varianza) * deterrant;
+            penalizacion_homogeneidad += (varianza_zona - umbral_varianza) * deterrant;
         }
     }
+
+    // Detección de islas y su respectiva penalización
+
+    double penalizacion_islas = 0.0;
+    // El castigo por ser isla debe ser lo suficientemente alto para motivar el cambio,
+    // pero idealmente menor que violar la homogeneidad global.
+    const double M_ISLA = 5000.0; 
+
+    // Direcciones para vecinos: Arriba, Abajo, Izquierda, Derecha
+    int dr[] = {-1, 1, 0, 0};
+    int dc[] = {0, 0, -1, 1};
+
+    for (int i = 0; i < instancia.N_filas; ++i) {
+        for (int j = 0; j < instancia.M_columnas; ++j) {
+            
+            int mi_zona = solucion.zonas_asignadas[i][j];
+            bool tengo_vecino_igual = false;
+            int vecinos_validos = 0;
+
+            for(int d=0; d<4; ++d) {
+                int ni = i + dr[d];
+                int nj = j + dc[d];
+
+                // Verificar límites del mapa
+                if(ni >= 0 && ni < instancia.N_filas && nj >= 0 && nj < instancia.M_columnas) {
+                    vecinos_validos++;
+                    if(solucion.zonas_asignadas[ni][nj] == mi_zona) {
+                        tengo_vecino_igual = true;
+                        break; // Se encontro un vecino de la misma zona, NO es isla
+                    }
+                }
+            }
+
+            // Si tengo vecinos, pero NINGUNO es de mi zona -> SOY UNA ISLA
+            if (vecinos_validos > 0 && !tengo_vecino_igual) {
+                penalizacion_islas += M_ISLA;
+            }
+        }
+    }
+
+
+
     // Como estamos minimizando los valores, la penalización se suma al costo total
-    return costo_total + penalizacion;
+    return costo_total + penalizacion_homogeneidad + penalizacion_islas;
 }
 
 // Algoritmo Hill Climbing 
@@ -268,7 +335,7 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, doub
 
     for (int r = 0; r < num_restarts; ++r) {
         
-        // Generamos una solución inicial aleatoria
+        // Generamos una solución inicial con greedy
         Solucion sol_inicial = generar_solucion_inicial_aleatoria(instancia);
 
         // Mejoramos dicha solucion con Hill Climbing
@@ -286,12 +353,10 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, doub
 
     std::cout << "---------------------------------------------------" << std::endl;
     std::cout << "Optimizacion finalizada." << std::endl;
-
-    // Mostramos la mejor solucion sin penalizacion (asumiendo que se llego a una solución valida)
-    double costo_sin_penalizacion = evaluar_solucion(instancia, mejor_solucion_global, std::numeric_limits<double>::infinity());
-    std::cout << "Mejor Costo Final (sin penalizacion): " << costo_sin_penalizacion << std::endl;
-    std::cout << "Mejor Costo Final (con penalizacion): " << mejor_solucion_global.costo << std::endl;
+    
+    std::cout << "Mejor Costo Total (Varianza + Penalizaciones): " << mejor_solucion_global.costo << std::endl;
     std::cout << "---------------------------------------------------" << std::endl;
+
 
 
     return mejor_solucion_global;
@@ -354,11 +419,11 @@ int main(int argc, char* argv[]) {
     auto datos = leer_datos("instances/" + archivo_datos);
     Instancia instancia_problema(datos, p_zonas);
 
-    for (const auto& fila : datos) {
-        for (float x : fila)
-            std::cout << x << " ";
-        std::cout << "\n";
-    }
+    // for (const auto& fila : datos) {
+    //     for (float x : fila)
+    //         std::cout << x << " ";
+    //     std::cout << "\n";
+    // }
 
     double varianza_total_S = calcular_varianza_total(instancia_problema);
     double umbral_varianza_max = alpha * varianza_total_S;
@@ -372,7 +437,7 @@ int main(int argc, char* argv[]) {
     
 
     // Más restarts = más tiempo, pero mayor probabilidad de una buena solución.
-    int num_restarts = 20;
+    int num_restarts = 20*2;
 
     // Todo el codigo corre con esta linea jajaj
     Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts, umbral_varianza_max);
