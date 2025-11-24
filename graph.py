@@ -119,6 +119,9 @@ def plot_by_instance(df):
         
         safe_name = inst.replace("/", "_").replace("\\", "_")
         filename_out = f"grafico_{safe_name}.png"
+        folder_out = "graficos/medianos"
+        os.makedirs(folder_out, exist_ok=True)
+        filename_out = os.path.join(folder_out, filename_out)
         plt.savefig(filename_out)
         print(f"  -> Guardado: {filename_out}")
         plt.close()
@@ -128,7 +131,7 @@ if __name__ == "__main__":
     
     if not df_resultados.empty:
         plot_by_instance(df_resultados)
-        df_resultados.to_csv("resumen_experimentos.csv", index=False)
-        print("\nTabla resumen guardada en 'resumen_experimentos.csv'")
+        df_resultados.to_csv("resumen_experimentos_medianos.csv", index=False)
+        print("\nTabla resumen guardada en 'resumen_experimentos_medianos.csv'")
     else:
         print("No se encontraron datos válidos en test_results/ (DataFrame vacío).")

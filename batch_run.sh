@@ -5,15 +5,15 @@
 # =================================================================
 
 INSTANCIAS=(
-    "Pequeñas/pequena_1.spp"
-    "Pequeñas/pequena_2.spp"
-    "Pequeñas/pequena_3.spp"
-    "Pequeñas/pequena_4.spp"
-    "Pequeñas/pequena_5.spp"
+    "Medianas/mediana_1.spp"
+    # "Medianas/mediana_2.spp"
+    # "Medianas/mediana_3.spp"
+    # "Pequeñas/pequena_4.spp"
+    # "Pequeñas/pequena_5.spp"
 )
 
-ZONAS_LISTA=(4 5 6)
-ALPHAS_LISTA=(0.2 0.3 0.4 0.5)
+ZONAS_LISTA=(5 6) #agregar 4
+ALPHAS_LISTA=(0.3 0.4 0.5) #agregar 0.2
 
 echo "============================================="
 echo " PREPARANDO ENTORNO "

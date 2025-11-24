@@ -10,7 +10,7 @@ fi
 INSTANCIA=$1
 ZONAS=$2
 ALPHA=$3
-NUM_EJECUCIONES=20
+NUM_EJECUCIONES=10 #cambiar a 20
 
 # Definir carpeta base de resultados
 DIR_RESULTADOS="test_results"
