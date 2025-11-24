@@ -12,8 +12,8 @@ INSTANCIAS=(
     # "Pequeñas/pequena_5.spp"
 )
 
-ZONAS_LISTA=(5 6) #agregar 4
-ALPHAS_LISTA=(0.3 0.4 0.5) #agregar 0.2
+ZONAS_LISTA=(5 6) #agregar 5 6 
+ALPHAS_LISTA=(0.2) #agregar 0.2
 
 echo "============================================="
 echo " PREPARANDO ENTORNO "
