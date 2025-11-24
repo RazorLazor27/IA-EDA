@@ -7,6 +7,7 @@
 #include <map>        // Para agrupar valores por zona
 #include <fstream>    // Para lectura de archivos
 #include <string>
+#include <chrono>
 
 // Muestra el mapa de calor
 void plotHeatmap(const std::vector<std::vector<float>>& M, int factor, const std::vector<std::vector<int>>& Z = {}, bool showLabels = false);
@@ -53,6 +54,10 @@ struct Solucion {
     }
 };
 
+struct Punto {
+    int r,c;
+};
+
 // --------------------------------------------------------------------------
 // MOTOR DE NÚMEROS ALEATORIOS (Para 'Restart')
 // --------------------------------------------------------------------------
@@ -66,11 +71,8 @@ int randint(int min, int max) {
     return dis(gen);
 }
 
-// --------------------------------------------------------------------------
-// IMPLEMENTACIÓN MÍNIMA REQUERIDA
-// --------------------------------------------------------------------------
 
-// 1. Generación de Solución Inicial (Greedy / Aleatoria)
+// 1. Generación de Solución Inicial (Greedy Espacial o Aleatoria)
 
 /**
  * @brief Genera una solución inicial aleatoria.
@@ -86,10 +88,35 @@ int randint(int min, int max) {
 Solucion generar_solucion_inicial_aleatoria(const Instancia& instancia) {
     Solucion sol(instancia.N_filas, instancia.M_columnas);
 
+    std::vector<Punto> semillas;
+    while (semillas.size() < instancia.num_zonas) {
+        Punto p = {randint(0, instancia.N_filas -1), randint(0, instancia.M_columnas -1)};
+        bool existe = false;
+        for (const auto& s : semillas) {
+            if (s.r == p.r && s.c == p.c) {
+                existe = true;
+                break;
+            }
+        }
+        if (!existe) {
+            semillas.push_back(p);
+        }
+    }
+
+    // Ahora la asignacion greedy espacial
+
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
-            // Asigna un ID de zona aleatorio entre 0 y p-1
-            sol.zonas_asignadas[i][j] = randint(0, instancia.num_zonas - 1);
+            int zona_mas_cercana = 0;
+            double distancia_minima = std::numeric_limits<double>::infinity();
+            for (int k = 0; k < instancia.num_zonas; ++k) {
+                double distancia = std::sqrt(std::pow(i - semillas[k].r, 2) + std::pow(j - semillas[k].c, 2));
+                if (distancia < distancia_minima) {
+                    distancia_minima = distancia;
+                    zona_mas_cercana = k;
+                }
+            }
+            sol.zonas_asignadas[i][j] = zona_mas_cercana;
         }
     }
     // El costo se calculará por separado
@@ -156,7 +183,7 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
     // Usamos un map para agrupar todos los valores que pertenecen a cada zona
     std::map<int, std::vector<float>> valores_por_zona;
 
-    //Agrupar valores por zona
+    // Calculo de varianza por zona
     for (int i = 0; i < instancia.N_filas; ++i) {
         for (int j = 0; j < instancia.M_columnas; ++j) {
 
@@ -166,9 +193,8 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
         }
     }
 
-    // Calcular la varianza de cada zona y sumarlas
     double costo_total = 0.0;
-    double penalizacion = 0.0;
+    double penalizacion_homogeneidad = 0.0;
     const double deterrant = 1e9; // Factor de penalización muuuuy grande
 
     for (int k = 0; k < instancia.num_zonas; ++k) {
@@ -177,11 +203,53 @@ double evaluar_solucion(const Instancia& instancia, const Solucion& solucion, do
         costo_total += varianza_zona;
         if (varianza_zona > umbral_varianza) {
             // Si no cumple el umbral, aplicamos una penalización grande
-            penalizacion += (varianza_zona - umbral_varianza) * deterrant;
+            penalizacion_homogeneidad += (varianza_zona - umbral_varianza) * deterrant;
         }
     }
+
+    // Detección de islas y su respectiva penalización
+
+    double penalizacion_islas = 0.0;
+    // El castigo por ser isla debe ser lo suficientemente alto para motivar el cambio,
+    // pero idealmente menor que violar la homogeneidad global.
+    const double M_ISLA = 5000.0; 
+
+    // Direcciones para vecinos: Arriba, Abajo, Izquierda, Derecha
+    int dr[] = {-1, 1, 0, 0};
+    int dc[] = {0, 0, -1, 1};
+
+    for (int i = 0; i < instancia.N_filas; ++i) {
+        for (int j = 0; j < instancia.M_columnas; ++j) {
+            
+            int mi_zona = solucion.zonas_asignadas[i][j];
+            bool tengo_vecino_igual = false;
+            int vecinos_validos = 0;
+
+            for(int d=0; d<4; ++d) {
+                int ni = i + dr[d];
+                int nj = j + dc[d];
+
+                // Verificar límites del mapa
+                if(ni >= 0 && ni < instancia.N_filas && nj >= 0 && nj < instancia.M_columnas) {
+                    vecinos_validos++;
+                    if(solucion.zonas_asignadas[ni][nj] == mi_zona) {
+                        tengo_vecino_igual = true;
+                        break; // Se encontro un vecino de la misma zona, NO es isla
+                    }
+                }
+            }
+
+            // Si tengo vecinos, pero NINGUNO es de mi zona -> SOY UNA ISLA
+            if (vecinos_validos > 0 && !tengo_vecino_igual) {
+                penalizacion_islas += M_ISLA;
+            }
+        }
+    }
+
+
+
     // Como estamos minimizando los valores, la penalización se suma al costo total
-    return costo_total + penalizacion;
+    return costo_total + penalizacion_homogeneidad + penalizacion_islas;
 }
 
 // Algoritmo Hill Climbing 
@@ -264,18 +332,18 @@ Solucion hill_climbing_first_improvement(const Instancia& instancia, Solucion so
 Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, double umbral_varianza) {
     
     Solucion mejor_solucion_global(instancia.N_filas, instancia.M_columnas);
-    std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
+    // std::cout << "Iniciando Hill Climbing con " << num_restarts << " restarts..." << std::endl;
 
     for (int r = 0; r < num_restarts; ++r) {
         
-        // Generamos una solución inicial aleatoria
+        // Generamos una solución inicial con greedy
         Solucion sol_inicial = generar_solucion_inicial_aleatoria(instancia);
 
         // Mejoramos dicha solucion con Hill Climbing
         Solucion sol_optimo_local = hill_climbing_first_improvement(instancia, sol_inicial, umbral_varianza);
 
-        std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
-                  << " -> Costo (Con Penalización) " << sol_optimo_local.costo << std::endl;
+        // std::cout << "  Restart " << (r + 1) << "/" << num_restarts 
+        //           << " -> Costo (Con Penalización) " << sol_optimo_local.costo << std::endl;
 
         // Comparamos con la mejor solución global encontrada hasta ahora
         if (sol_optimo_local.costo < mejor_solucion_global.costo) {
@@ -283,16 +351,6 @@ Solucion resolver_con_restart(const Instancia& instancia, int num_restarts, doub
             std::cout << "  --> Nueva mejor solucion encontrada! " << std::endl;
         }
     }
-
-    std::cout << "---------------------------------------------------" << std::endl;
-    std::cout << "Optimizacion finalizada." << std::endl;
-
-    // Mostramos la mejor solucion sin penalizacion (asumiendo que se llego a una solución valida)
-    double costo_sin_penalizacion = evaluar_solucion(instancia, mejor_solucion_global, std::numeric_limits<double>::infinity());
-    std::cout << "Mejor Costo Final (sin penalizacion): " << costo_sin_penalizacion << std::endl;
-    std::cout << "Mejor Costo Final (con penalizacion): " << mejor_solucion_global.costo << std::endl;
-    std::cout << "---------------------------------------------------" << std::endl;
-
 
     return mejor_solucion_global;
 }
@@ -325,76 +383,74 @@ std::vector<std::vector<float>> leer_datos(const std::string& filename) {
 }
 
 int main(int argc, char* argv[]) {
-    
-    // Cargamos los datos del terreno desde un archivo
-    if (argc < 4) {
-        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp> <num_zonas> <alpha>" << std::endl;
-        std::cerr << "Ejemplo: " << argv[0] << " instancia_ejemplo.spp 4 0.25" << std::endl;
-        return 1;
+
+    // Detectar bandera --no-gui
+    bool no_gui = false;
+    for(int i=0; i<argc; ++i) {
+        std::string s = argv[i];
+        if (s == "--no-gui") no_gui = true;
     }
 
+    if (argc < 4) {
+        std::cerr << "Uso: " << argv[0] << " <archivo_datos.spp> <num_zonas> <alpha> [options]" << std::endl;
+        return 1;
+    }
+    
     std::string archivo_datos = argv[1];
     int p_zonas = std::stoi(argv[2]);
     double alpha = std::stod(argv[3]);
-
+    
     bool mostrar_etiquetas = false;
-
+    // Chequeo simple para el 4to argumento si no es --no-gui
     if (argc >= 5) {
-        std::string etiqueta_flag = argv[4];
-        if (etiqueta_flag == "--show-labels") {
-            mostrar_etiquetas = true;
-        }
-    }
-
-    if (alpha < 0.0 || alpha > 1.0) {
-        std::cerr << "Error: alpha debe estar entre 0.0 y 1.0" << std::endl;
-        return 1;
+        std::string arg = argv[4];
+        if (arg == "1" || arg == "true") mostrar_etiquetas = true;
     }
 
     auto datos = leer_datos("instances/" + archivo_datos);
     Instancia instancia_problema(datos, p_zonas);
 
-    for (const auto& fila : datos) {
-        for (float x : fila)
-            std::cout << x << " ";
-        std::cout << "\n";
-    }
-
     double varianza_total_S = calcular_varianza_total(instancia_problema);
     double umbral_varianza_max = alpha * varianza_total_S;
-
-    std::cout << "----------------------------------------------------------" << std::endl;
-    std::cout << "Instancia cargada: " << instancia_problema.N_filas << "x" << instancia_problema.M_columnas << std::endl;
-    std::cout << "Numero de zonas (p): " << p_zonas << std::endl;
-    std::cout << "Nivel de homogeneidad (alpha): " << alpha << std::endl;
-    std::cout << "Varianza Total (Var(S)): " << varianza_total_S << std::endl;
-    std::cout << "Umbral Max. Varianza por Zona (alpha * Var(S)): " << umbral_varianza_max << std::endl;
     
-
-    // Más restarts = más tiempo, pero mayor probabilidad de una buena solución.
+    if (!no_gui) {
+        std::cout << "Instancia cargada: " << instancia_problema.N_filas << "x" << instancia_problema.M_columnas << std::endl;
+        std::cout << "Varianza Total (Var(S)): " << varianza_total_S << std::endl;
+    }
+    
     int num_restarts = 20;
 
-    // Todo el codigo corre con esta linea jajaj
-    Solucion solucion_final = resolver_con_restart(instancia_problema, num_restarts, umbral_varianza_max);
+    // --- MEDICIÓN DE TIEMPO ---
+    auto start_time = std::chrono::high_resolution_clock::now();
 
-    // Hacemos una copia y sumamos 1 a todas las celdas para la visualización.
-    std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
-    for (int i = 0; i < instancia_problema.N_filas; ++i) {
-        for (int j = 0; j < instancia_problema.M_columnas; ++j) {
-            zonas_para_mostrar[i][j] += 1;
+    Solucion solucion_final = resolver_con_restart(
+                                    instancia_problema, 
+                                    num_restarts, 
+                                    umbral_varianza_max);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    // --------------------------
+
+    double costo_sin_penalizacion = evaluar_solucion(instancia_problema, solucion_final, std::numeric_limits<double>::infinity());
+
+    // SALIDA PARA EL SCRIPT (Formato fijo)
+    std::cout << "Mejor Costo Final (sin penalizacion): " << costo_sin_penalizacion << std::endl;
+    std::cout << "Mejor Costo Final (con penalizacion): " << solucion_final.costo << std::endl;
+    std::cout << "Tiempo de ejecucion: " << duration.count() << " segundos" << std::endl;
+
+    // Solo mostrar gráfico si NO estamos en modo script
+    if (!no_gui) {
+        std::vector<std::vector<int>> zonas_para_mostrar = solucion_final.zonas_asignadas;
+        for (int i = 0; i < instancia_problema.N_filas; ++i) {
+            for (int j = 0; j < instancia_problema.M_columnas; ++j) {
+                zonas_para_mostrar[i][j] += 1;
+            }
         }
+        std::cout << "Mostrando mapa de calor..." << std::endl;
+        plotHeatmap(instancia_problema.datos_terreno, 
+                    30,
+                    zonas_para_mostrar,
+                    mostrar_etiquetas); 
     }
-
-
-    // Aqui se muestra efectivamente el mapa de calor 
-    
-    std::cout << "Mostrando mapa de calor de la solucion final..." << std::endl;
-    std::cout << "Presione cualquier tecla en la ventana del mapa para salir." << std::endl;
-    
-    plotHeatmap(instancia_problema.datos_terreno, 
-                30,
-                zonas_para_mostrar,
-                mostrar_etiquetas);
-
-    return 0;
 }

@@ -1,60 +1,63 @@
 #!/bin/bash
 
-# ==========================================
-# CONFIGURACIÓN DE LA EJECUCIÓN
-# ==========================================
-
-# Define aquí la subcarpeta y el archivo
-# El C++ busca automáticamente dentro de "instances/", así que solo pon lo que sigue:
-CARPETA_TIPO="Pequeñas"   # Ej: Pequeñas, Medianas
-ARCHIVO="pequena_1.spp"   # Nombre del archivo
-
-# Parámetros del algoritmo
-NUM_ZONAS=4
-ALPHA=0.25
-MOSTRAR_ETIQUETAS=1       # 1 = Ver números, 0 = Solo colores
-
-# Nombre del ejecutable
-EJECUTABLE="./spp_solver"
-
-# Construcción de la ruta que espera el C++ (Pequeñas/pequena_1.spp)
-ARGUMENTO_ARCHIVO="$CARPETA_TIPO/$ARCHIVO"
-
-# ==========================================
-# LÓGICA DE COMPILACIÓN Y EJECUCIÓN
-# ==========================================
-
-# 1. Verificar si existe el Makefile
-if [ ! -f "Makefile" ]; then
-    echo "Error: No se encuentra el archivo 'Makefile' en la raíz."
+# Verificar argumentos
+if [ "$#" -lt 3 ]; then
+    echo "Uso: $0 <archivo_instancia.spp> <num_zonas> <alpha>"
+    echo "Ejemplo: ./run.sh instances/Pequeñas/pequena_2.spp 4 0.25"
     exit 1
 fi
 
-# 2. Compilar si es necesario (o si el ejecutable no existe)
-echo "--- Verificando estado del proyecto ---"
-make -q # Comprueba si está actualizado
+INSTANCIA=$1
+ZONAS=$2
+ALPHA=$3
+NUM_EJECUCIONES=10 #cambiar a 20
+
+# Definir carpeta base de resultados
+DIR_RESULTADOS="test_results"
+
+# Construimos la ruta del archivo de salida
+OUTPUT_FILE="${DIR_RESULTADOS}/resultados_${INSTANCIA}_z${ZONAS}_a${ALPHA}.txt"
+
+# --- CORRECCIÓN ---
+# Obtenemos el directorio donde vivirá este archivo específico
+OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
+
+# Creamos ese directorio específico (incluyendo subcarpetas como 'resultados_Pequeñas')
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo "Creando directorio para resultados: $OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR"
+fi
+# ------------------
+
+echo "Compilando desde src/..."
+g++ src/main.cpp src/heatmap.cpp -I/usr/include/opencv4 -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -o spp_solver
+
 if [ $? -ne 0 ]; then
-    echo "Cambios detectados o ejecutable faltante. Compilando..."
-    make
-    if [ $? -ne 0 ]; then
-        echo "❌ Error crítico en la compilación."
-        exit 1
-    fi
-else
-    echo "✅ El proyecto ya está compilado y actualizado."
+    echo "Error compilación. Verifica que main.cpp y heatmap.cpp estén en la carpeta src/"
+    exit 1
 fi
 
-# 3. Ejecutar el programa
-echo ""
-echo ">>> EJECUTANDO SOLVER <<<"
-echo "📂 Instancia: instances/$ARGUMENTO_ARCHIVO"
-echo "🎯 Zonas:     $NUM_ZONAS"
-echo "📊 Alpha:     $ALPHA"
-echo "🏷️  Etiquetas: $([ "$MOSTRAR_ETIQUETAS" -eq 1 ] && echo "SÍ" || echo "NO")"
-echo "------------------------------------------"
+echo "Iniciando 20 ejecuciones..."
+echo "Instancia: $INSTANCIA | Zonas: $ZONAS | Alpha: $ALPHA"
+echo "Guardando resultados en: $OUTPUT_FILE"
 
-# Ejecución
-$EJECUTABLE "$ARGUMENTO_ARCHIVO" "$NUM_ZONAS" "$ALPHA" "$MOSTRAR_ETIQUETAS"
+# Escribir encabezado (número de ejecuciones)
+echo "$NUM_EJECUCIONES" > "$OUTPUT_FILE"
 
-echo ""
-echo ">>> Fin del proceso <<<"
+for ((i=1; i<=NUM_EJECUCIONES; i++))
+do
+    echo -ne "Run $i... "
+    # Usamos --no-gui para evitar ventanas emergentes
+    SALIDA=$(./spp_solver "$INSTANCIA" "$ZONAS" "$ALPHA" --no-gui)
+    
+    # Extraer datos con grep y awk
+    C_SIN=$(echo "$SALIDA" | grep "sin penalizacion" | awk '{print $6}')
+    C_CON=$(echo "$SALIDA" | grep "con penalizacion" | awk '{print $6}')
+    TIME=$(echo "$SALIDA" | grep "Tiempo de ejecucion" | awk '{print $4}')
+    
+    echo "$C_SIN $C_CON $TIME" >> "$OUTPUT_FILE"
+    echo "Done ($TIME s)"
+done
+
+echo "Experimento finalizado."
+echo "Resultados disponibles en: $OUTPUT_FILE"
